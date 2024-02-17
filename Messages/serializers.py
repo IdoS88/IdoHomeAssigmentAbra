@@ -40,7 +40,6 @@ class MessageItemInfoSerializer(serializers.ModelSerializer):
 
 
 class CreateMessageInfoSerializer(serializers.Serializer):
-    print(Users.objects.all())
     sender = serializers.CharField(max_length=25)
     receivers = serializers.SlugRelatedField(
         queryset=Users.objects.all(), slug_field='username', many=True)
@@ -73,7 +72,7 @@ class CreateMessageInfoSerializer(serializers.Serializer):
         message_info = MessageItemInfo.objects.create(
             sender=sender,
             subject=validated_data['subject'],
-            text=validated_data['text']
+            text=validated_data['text'],
         )
 
         # Create MessageReceivers instances after message_info is created
