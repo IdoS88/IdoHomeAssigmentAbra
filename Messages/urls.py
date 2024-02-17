@@ -12,6 +12,5 @@ router = routers.DefaultRouter()
 # specify URL Path for rest_framework
 urlpatterns = [
     path('', include(router.urls)),
-    path('messages/', write_message),
-    path('users/', get_all_users),
+    path('messages/', SendMessageView.as_view()),
 ]
