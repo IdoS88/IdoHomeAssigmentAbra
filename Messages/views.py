@@ -1,9 +1,8 @@
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .serializers import CreateMessageSerializer
+from Messages.serializers import CreateMessageSerializer
 
 
 # @csrf_exempt
@@ -14,12 +13,13 @@ from .serializers import CreateMessageSerializer
 #         return JsonResponse(serializer.data, safe=False)
 
 
+
 class SendMessageView(APIView):
     # permission_classes = [IsAuthenticated]  # Add authentication and permissions
 
     def post(self, request):
+        print(request.data, type(request.data))
         serializer = CreateMessageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(data=serializer.data, status=status.HTTP_201_CREATED)

@@ -13,28 +13,28 @@ class Users(models.Model):
 
 
 class MessageItemInfo(models.Model):
-    message_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    sender = models.ForeignKey(Users, on_delete=models.PROTECT)  # Remove on_delete
+    message = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sender = models.ForeignKey(Users, on_delete=models.PROTECT)
     subject = models.CharField(max_length=35)
     text = models.TextField()
-    date_created = models.DateField(auto_now=True)
+    dateCreated = models.DateField(auto_now=True)
 
     def __str__(self):
-        return f'\nMessage_id: {self.message_id} \nsender: {self.sender}\nsubject: {self.subject}\ntext: {self.text}\ndate_created: {self.date_created}\n'
+        return f'\nMessage_id: {self.message} \nsender: {self.sender}\nsubject: {self.subject}\ntext: {self.text}\ndate_created: {self.dateCreated}\n'
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['message_id', 'sender'],
+        constraints = [models.UniqueConstraint(fields=['message', 'sender'],
                                                name='unique_migration_host_combination_message_sender')]
 
 
 class MessageReceivers(models.Model):
-    message_id = models.ForeignKey(MessageItemInfo, on_delete=models.CASCADE)
-    receiver = models.ForeignKey(Users, on_delete=models.SET_DEFAULT, default=-1)
+    message = models.ForeignKey(MessageItemInfo, on_delete=models.CASCADE)
+    receiver = models.ForeignKey(Users, on_delete=models.PROTECT)
     read = models.BooleanField(editable=True, default=False)
 
     def __str__(self):
-        return f'\nMessage_id: {self.message_id} \nreceiver: {self.receiver}\nread: {self.read}\n'
+        return f'\nMessage_id: {self.message} \nreceiver: {self.receiver}\nread: {self.read}\n'
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['message_id', 'receiver'],
+        constraints = [models.UniqueConstraint(fields=['message', 'receiver'],
                                                name='unique_migration_host_combination_message_receiver')]
