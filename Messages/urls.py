@@ -13,4 +13,6 @@ router = routers.DefaultRouter()
 urlpatterns = [
     path('', include(router.urls)),
     path('messages/', CreateMessageView.as_view()),
+    path('messages/<uuid:message_id>', MessageDetail.as_view()),
+
 ]
