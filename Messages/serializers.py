@@ -10,13 +10,31 @@ class UserSerializer(serializers.ModelSerializer):
         validators = []
 
 
-class MessageItemInfoSerializer(serializers.ModelSerializer):
-    sender = UserSerializer()
+from rest_framework import serializers
+from .models import Users, MessageItemInfo, MessageReceivers
 
-    class Meta:
-        model = MessageItemInfo
-        fields = ('message', 'sender', 'subject', 'text', 'dateCreated')
 
+class MessageSerializer(serializers.Serializer):
+    sender = serializers.CharField()
+    subject = serializers.CharField()
+    text = serializers.CharField()
+    receivers = serializers.ListField(child=serializers.CharField())
+
+    def validate(self, data):
+        # Validate sender exists
+        try:
+            Users.objects.get(username=data['sender'])
+        except Users.DoesNotExist:
+            raise serializers.ValidationError("Sender does not exist")
+
+        # Validate all receivers exist
+        for receiver in data['receivers']:
+            try:
+                Users.objects.get(username=receiver)
+            except Users.DoesNotExist:
+                raise serializers.ValidationError(f"Receiver {receiver} does not exist")
+
+        return data
 
 class MessageReceiverSerializer(serializers.ModelSerializer):
     receiver = UserSerializer()
@@ -28,64 +46,31 @@ class MessageReceiverSerializer(serializers.ModelSerializer):
 
 class CreateMessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(required=True)
+    receivers = UserSerializer(many=True, required=True)
 
     class Meta:
         model = MessageItemInfo
-        fields = ("message", "sender", "subject", "text", "dateCreated")
+        fields = ("message", "sender", "receivers", "subject", "text", "dateCreated")
         validators = []
-
-    # def validate_sender(self, value):
-    #     """
-    #     Validate the sender user.
-    #     """
-    #     user_data = value
-    #
-    #     # Assuming you have a unique field in your Users model (e.g., 'username')
-    #     username = user_data.get('username')
-    #
-    #     if not Users.objects.filter(username=username).exists():
-    #         raise serializers.ValidationError("Sender user does not exist.")
-    #
-    #     return user_data
 
     def create(self, validated_data):
         sender_data = validated_data.pop('sender')
-        username = sender_data['username']
+        sender_username = sender_data['username']
 
-        # Check if user already exists
+        receivers_data = validated_data.pop('receivers', [])
+        receivers_usernames = [receiver['username'] for receiver in receivers_data]
+
+        # Check if sender exists
         try:
-            user_instance = Users.objects.get(username=username)
+            sender_instance = Users.objects.get(username=sender_username)
         except Users.DoesNotExist:
             raise serializers.ValidationError("Sender user does not exist.")
 
+        # Check if all receivers exist
+        existing_receivers = Users.objects.filter(username__in=receivers_usernames)
+        if existing_receivers.count() != len(receivers_usernames):
+            raise serializers.ValidationError("One or more receiver users do not exist.")
+
         # Create MessageItemInfo instance
-        message_item_info = MessageItemInfo.objects.create(sender=user_instance, **validated_data)
+        message_item_info = MessageItemInfo.objects.create(sender=sender_instance, **validated_data)
         return message_item_info
-
-    # def validate_receivers(self, value):
-    #     users = []
-    #     for username in value:
-    #         try:
-    #             user = Users.objects.get(username=username)
-    #         except Users.DoesNotExist:
-    #             raise ValidationError(f"Receiver '{username}' does not exist.")
-    #         users.append(user)
-    #     return users
-    # def create_message(self, validated_data):
-    #     message_fields = {
-    #         field: value
-    #         for field, value in validated_data.items()
-    #         if field in MessageItemInfo._meta.fields
-    #     }
-    #
-    #     return MessageItemInfo.objects.create(**message_fields)
-
-    # def create_receivers(self, message, validated_data):
-    #     receivers = validated_data['receivers']
-    #     receivers_entities = []
-    #     for receiver in receivers:
-    #         receivers_entities += MessageReceivers.objects.create(
-    #             message_id=message,
-    #             receiver=receiver
-    #         )
-    #     return receivers_entities
