@@ -1,17 +1,15 @@
+from django.contrib.auth.models import User
 from rest_framework import serializers
 
-from .models import Users
+from .models import MessageItemInfo, MessageReceivers
 
 
-class UserSerializer(serializers.ModelSerializer):
+class LoginSerializer(serializers.ModelSerializer):
+    username = serializers.CharField()
+
     class Meta:
-        model = Users
-        fields = ('username',)
-        validators = []
-
-
-from rest_framework import serializers
-from .models import Users, MessageItemInfo, MessageReceivers
+        model = User
+        fields = ['username', 'password']
 
 
 class MessageSerializer(serializers.Serializer):
@@ -23,23 +21,21 @@ class MessageSerializer(serializers.Serializer):
     def validate(self, data):
         # Validate sender exists
         try:
-            Users.objects.get(username=data['sender'])
-        except Users.DoesNotExist:
+            User.objects.get(username=data['sender'])
+        except User.DoesNotExist:
             raise serializers.ValidationError("Sender does not exist")
 
         # Validate all receivers exist
         for receiver in data['receivers']:
             try:
-                Users.objects.get(username=receiver)
-            except Users.DoesNotExist:
+                User.objects.get(username=receiver)
+            except User.DoesNotExist:
                 raise serializers.ValidationError(f"Receiver {receiver} does not exist")
 
         return data
 
 
 class MessageReceiverSerializer(serializers.ModelSerializer):
-    receiver = UserSerializer()
-
     class Meta:
         model = MessageReceivers
         fields = ('message', 'receiver', 'read')
@@ -47,8 +43,8 @@ class MessageReceiverSerializer(serializers.ModelSerializer):
 
 
 class CreateMessageSerializer(serializers.ModelSerializer):
-    sender = UserSerializer(required=True)
-    receivers = UserSerializer(many=True, required=True)
+    sender = serializers.CharField(source="sender.username")
+    receivers = serializers.ListField(child=serializers.CharField(), source="receivers")
 
     class Meta:
         model = MessageItemInfo
@@ -57,19 +53,19 @@ class CreateMessageSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         sender_data = validated_data.pop('sender')
-        sender_username = sender_data['username']
+        sender_id = sender_data['id']
 
         receivers_data = validated_data.pop('receivers', [])
         receivers_usernames = [receiver['username'] for receiver in receivers_data]
 
         # Check if sender exists
         try:
-            sender_instance = Users.objects.get(username=sender_username)
-        except Users.DoesNotExist:
+            sender_instance = User.objects.get(id=sender_id)
+        except User.DoesNotExist:
             raise serializers.ValidationError("Sender user does not exist.")
 
         # Check if all receivers exist
-        existing_receivers = Users.objects.filter(username__in=receivers_usernames)
+        existing_receivers = User.objects.filter(username__in=receivers_usernames)
         if existing_receivers.count() != len(receivers_usernames):
             raise serializers.ValidationError("One or more receiver users do not exist.")
 
