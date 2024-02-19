@@ -43,6 +43,7 @@ class MessageReceiverSerializer(serializers.ModelSerializer):
     class Meta:
         model = MessageReceivers
         fields = ('message', 'receiver', 'read')
+        validators = []
 
 
 class CreateMessageSerializer(serializers.ModelSerializer):

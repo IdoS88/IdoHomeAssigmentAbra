@@ -12,18 +12,27 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import MessageItemInfo, MessageReceivers, Users
-from .serializers import MessageSerializer
+from .serializers import MessageSerializer, MessageReceiverSerializer
+
+
+def updateToRead(message_id):
+    model_to_patch = MessageReceivers.objects.get(message_id=message_id)
+    serializer = MessageReceiverSerializer(model_to_patch, data=json.dumps({"read": True}),
+                                           partial=True)  # set partial=True to update a data partially
+    if serializer.is_valid():
+        serializer.save()
+        print(serializer.data)
+        return True
+    return False
 
 
 class MessageDetail(APIView):
-    def patch(self, request, message_id):
-        pass
 
     def get(self, request, message_id):
         if not isinstance(message_id, uuid.UUID):
             return Response("Invalid message ID", status=400)
         try:
-            message = MessageItemInfo.objects.get(message=message_id)
+            message = MessageItemInfo.objects.get(id=message_id)
         except MessageItemInfo.DoesNotExist:
             return Response("Message not found", status=404)
 
@@ -35,7 +44,7 @@ class MessageDetail(APIView):
                 receivers.append(user)
 
             data = {
-                "message_id": message.message,
+                "message_id": message.id,
                 "sender": message.sender.username,
                 "receivers": receivers,
                 "subject": message.subject,
@@ -46,7 +55,10 @@ class MessageDetail(APIView):
                 raise Exception("Receivers not Found")
         except Exception as e:
             return Response(data={"errors": e}, status=404)
-        # self.patch(json.dumps(data), message_id)
+        if not updateToRead(message_id):
+            # TODO : error message to add
+            return JsonResponse(status=400)
+
         return JsonResponse(data, status=200)
 
 
@@ -65,13 +77,13 @@ class CreateMessageView(APIView):
             # Save receivers
             for receiver in serializer.validated_data['receivers']:
                 MessageReceivers.objects.create(
-                    message_id=messageEntity.message,
+                    message_id=messageEntity.id,
                     receiver_id=Users.objects.get(username=receiver).username
                 )
 
             return Response({
-                "message": "Message created successfully",
-                "message_id": messageEntity.message
+                "details": "Message created successfully",
+                "message_id": messageEntity.id
             }, status=201)
 
         else:
