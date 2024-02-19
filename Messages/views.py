@@ -4,9 +4,10 @@
 #         users = Users.objects.all()
 #         serializer = BaseUsersSerializer(users, many=True)
 #         return JsonResponse(serializer.data, safe=False)
+import json
 import uuid
 
-from django.db.models import Subquery, OuterRef, Prefetch
+from django.http import JsonResponse
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -27,32 +28,26 @@ class MessageDetail(APIView):
             return Response("Message not found", status=404)
 
         try:
-            queryset = MessageReceivers.objects.filter(
-                message_id=message_id
-            ).annotate(
-                message_subject=Subquery(
-                    MessageItemInfo.objects.filter(
-                        pk=OuterRef('message_id')
-                    ).values('subject')[:1]
-                ),
-                message_text=Subquery(
-                    MessageItemInfo.objects.filter(
-                        pk=OuterRef('message_id')
-                    ).values('text')[:1]
-                )
-            ).prefetch_related(
-                Prefetch('receiver', queryset=Users.objects.only('username'))
-            )
+            receivers = []
+            receiver_qs = MessageReceivers.objects.filter(message=message_id)
+            for receiver_row in receiver_qs:
+                user = receiver_row.receiver.username
+                receivers.append(user)
 
-            data = list(queryset.values(
-                'receiver__username',
-                'message_subject',
-                'message_text'
-            ))
-        except MessageItemInfo.DoesNotExist:
-            return Response("Receivers not found", status=404)
-        self.patch(data, message_id)
-        return Response(data, status=200)
+            data = {
+                "message_id": message.message,
+                "sender": message.sender.username,
+                "receivers": receivers,
+                "subject": message.subject,
+                "text": message.text,
+                "dateCreated": message.dateCreated
+            }
+            if any(value == "" or value is None for value in data.values()):
+                raise Exception("Receivers not Found")
+        except Exception as e:
+            return Response(data={"errors": e}, status=404)
+        # self.patch(json.dumps(data), message_id)
+        return JsonResponse(data, status=200)
 
 
 class CreateMessageView(APIView):

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Users, MessageItemInfo, MessageReceivers
+from .models import Users
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -35,6 +35,7 @@ class MessageSerializer(serializers.Serializer):
                 raise serializers.ValidationError(f"Receiver {receiver} does not exist")
 
         return data
+
 
 class MessageReceiverSerializer(serializers.ModelSerializer):
     receiver = UserSerializer()
