@@ -34,70 +34,35 @@ class CreateMessageSerializer(serializers.ModelSerializer):
     #     return {'request': self.context['request']}
 
     def validate_sender(self, value):
-
-        print("Sender ID:", value)
-
-        # Add this line to check existing user IDs
-        print("Existing User IDs:", list(User.objects.values_list('id', flat=True)))
-
         try:
-            sender = User.objects.get(id=value)
+            User.objects.get(id=value)
         except User.DoesNotExist:
-            raise serializers.ValidationError("Invalid sender")
-        if not value:
-            value = self.context['request'].user.id
-
-        elif value != self.context['request'].user.id:
-            raise serializers.ValidationError("Sender must be logged in user")
-
+            raise serializers.ValidationError("Sender user does not exist.")
         return value
 
     def validate_receivers(self, value):
-
-        receiver_ids = value or []
-        if len(receiver_ids) == 0:
-            raise serializers.ValidationError(f"Receivers list is empty")
-        # Validate receivers exist
-        invalid_ids = []
-        for receiver_id in receiver_ids:
+        for username in value:
             try:
-                User.objects.get(id=receiver_id)
+                User.objects.get(id=username)
             except User.DoesNotExist:
-                invalid_ids.append(receiver_id)
-
-        if invalid_ids:
-            raise serializers.ValidationError(f"Invalid receiver IDs: {invalid_ids}")
-
-        # # Validate against request user
-        # if self.context['request'].user.id in receiver_ids:
-        #     raise serializers.ValidationError("Cannot send to self")
-
-        return receiver_ids
+                raise serializers.ValidationError(f"Receiver '{username}' does not exist.")
+        return value
 
     def create(self, validated_data):
+        sender_id = validated_data.pop('sender')
+        receiver_ids = validated_data.pop('receivers')
+        sender_instance = User.objects.get(id=sender_id)
+        message = MessageItemInfo.objects.create(sender=sender_instance, **validated_data)
 
-        sender_id = validated_data.get('sender') or self.context['request'].user.id
-
-        try:
-            sender = User.objects.get(id=sender_id)
-        except User.DoesNotExist:
-            raise serializers.ValidationError("Invalid sender")
-
-        receivers_data = validated_data.pop('receivers')
-
-        # Create message
-        message = MessageItemInfo.objects.create(sender=sender, **validated_data)
-
-        receiver_ids = [receiver_id for receiver_id in receivers_data]
-
-        # Create relationships
-        for receiver_id in receiver_ids:
-            MessageReceivers.objects.create(
-                message=message,
-                receiver_id=receiver_id
-            )
+        for receiver_username in receiver_ids:
+            receiver_instance = User.objects.get(id=receiver_username)
+            MessageReceivers.objects.create(message=message, receiver=receiver_instance, read=False)
 
         return message
+
+    def get_receivers(self, obj):
+        receivers = MessageReceivers.objects.filter(message=obj.message_id)
+        return [receiver.receiver.id for receiver in receivers]
 
 
 class RetrieveDestroyOutputMessageSerializer(serializers.ModelSerializer):
@@ -132,7 +97,19 @@ class RetrieveDestroyOutputMessageSerializer(serializers.ModelSerializer):
 
 
 class MessageItemInfoSerializer(serializers.ModelSerializer):
-    sender = UserSerializer()
+    class Meta:
+        model = MessageItemInfo
+        fields = ('message_id', 'sender', 'subject', 'text', 'dateCreated')
+
+
+class MessageReceiverSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MessageReceivers
+        fields = ['message', 'receiver', 'read']
+        validators = []
+
+
+class MessageItemInfoExtendedSerializer(MessageItemInfoSerializer):
     receivers = serializers.SerializerMethodField()
 
     class Meta:
@@ -141,11 +118,32 @@ class MessageItemInfoSerializer(serializers.ModelSerializer):
 
     def get_receivers(self, obj):
         receivers = MessageReceivers.objects.filter(message=obj.message_id)
-        return [receiver.receiver.username for receiver in receivers]
+        return [receiver.receiver.id for receiver in receivers]
 
 
-class MessageReceiverSerializer(serializers.ModelSerializer):
+class AllMessageItemInfoSerializer(serializers.ModelSerializer):
+    receivers = serializers.SerializerMethodField()
+    read = serializers.SerializerMethodField()
+
     class Meta:
-        model = MessageReceivers
-        fields = ['message', 'receiver', 'read']
-        validators = []
+        model = MessageItemInfo
+        fields = ['message_id', 'sender', 'subject', 'text', 'dateCreated', 'receivers', 'read']
+
+    def get_receivers(self, obj):
+        user = self.context['request'].user
+
+        return MessageReceivers.objects.filter(message=obj.message_id, receiver=user.id).values_list('receiver',
+                                                                                                     flat=True)
+
+    def get_read(self, obj):
+        user = self.context['request'].user
+        read = MessageReceivers.objects.filter(message=obj.message_id, receiver=user.id).values_list('read',
+                                                                                                     flat=True).first()
+        return read
+
+
+class UnreadMessageItemInfoSerializer(AllMessageItemInfoSerializer):
+    def get_read(self, obj):
+        readMessage = MessageReceivers.objects.filter(receiver=self.context['request'].user.id, read=False)
+        return (receiver.read
+                for receiver in readMessage)

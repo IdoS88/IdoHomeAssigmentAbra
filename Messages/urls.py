@@ -12,8 +12,10 @@ router = routers.DefaultRouter()
 # specify URL Path for rest_framework
 urlpatterns = [
     path('', include(router.urls)),
-    path('messages/', ListCreateMessageView.as_view()),
-    path('messages/<uuid:message_id>', RetrieveDestroyMessageDetailsView.as_view()),
+    path('messages/', CreateListMessageView.as_view()),
+    path('messages/0', ListUnreadMessageView.as_view()),
+    path('messages/<uuid:message_id>', RetrieveMessageDetailsView.as_view()),
+    path('messages/<uuid:message_id>/delete', DeleteMessageDetailsView.as_view()),
     # path('messages/<int:user_id>/',UnReadMessageList.as_view())
 
 ]

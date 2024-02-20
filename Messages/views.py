@@ -5,8 +5,7 @@
 #         serializer = BaseUsersSerializer(users, many=True)
 #         return JsonResponse(serializer.data, safe=False)
 from django.contrib.auth import authenticate
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.models import User
+from django.db.models import Q
 from rest_framework import status, generics
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
@@ -14,7 +13,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import MessageItemInfo, MessageReceivers
-from .serializers import CreateMessageSerializer, LoginSerializer, RetrieveDestroyOutputMessageSerializer
+from .serializers import CreateMessageSerializer, LoginSerializer, RetrieveDestroyOutputMessageSerializer, \
+    MessageReceiverSerializer, MessageItemInfoExtendedSerializer, AllMessageItemInfoSerializer, \
+    UnreadMessageItemInfoSerializer
 
 
 class LoginAPIView(APIView):
@@ -70,7 +71,7 @@ class LoginAPIView(APIView):
 #         return context
 
 # PermissionRequiredMixin
-class RetrieveMessageDetailsView(generics.RetrieveDestroyAPIView):
+class RetrieveMessageDetailsView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = RetrieveDestroyOutputMessageSerializer
     queryset = MessageItemInfo.objects.all()
@@ -89,54 +90,67 @@ class RetrieveMessageDetailsView(generics.RetrieveDestroyAPIView):
             if self.request.user.id != get.data.sender:
                 Response(e, status=status.HTTP_403_FORBIDDEN)
         return get
-    def get_queryset(self):
-        if()
 
 
 class DeleteMessageDetailsView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
+    lookup_field = "message_id"
+
+    def get_serializer_class(self):
+        sender = MessageItemInfo.objects.get(message_id=self.kwargs.get("message_id")).sender
+        if sender == self.request.user.id:
+            return MessageItemInfo
+        return MessageReceiverSerializer
+
+    def get_queryset(self):
+        obj = MessageItemInfo.objects.get(message_id=self.kwargs.get("message_id"))
+        print(obj.sender.id, self.request.user.id)
+        if obj.sender.id == self.request.user.id:
+            return MessageItemInfo.objects.all()
+        return MessageReceivers.objects.all()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({
+            "message": "Order deleted successfully"
+        }, status=status.HTTP_200_OK)
 
 
-
-
-class ListCreateMessageView(LoginRequiredMixin, generics.ListCreateAPIView):
+class CreateListMessageView(generics.ListCreateAPIView):
     # permission_classes = [IsAuthenticated]
     queryset = MessageItemInfo.objects.all()
-    serializer_class = CreateMessageSerializer
+    serializer_class = AllMessageItemInfoSerializer
 
     # return MessageItemInfo.objects.filter(message_id=self.lookup_field) for list
     def post(self, request):
-        serializer = CreateMessageSerializer(data=request.data, context={'request': request})
+        serializer = CreateMessageSerializer(data=request.data)
         if serializer.is_valid():
-            # Save message
-            messageEntity = MessageItemInfo.objects.create(
-                sender_id=request.user.id,
-                subject=serializer.validated_data['subject'],
-                text=serializer.validated_data['text']
-            )
+            message = serializer.save()
+            message_data = MessageItemInfoExtendedSerializer(message).data
 
-            # Save receivers
-            for receiver in serializer.validated_data['receivers']:
-                MessageReceivers.objects.create(
-                    message_id=messageEntity.message_id,
-                    receiver_id=User.objects.get(id=receiver).id
-                )
-
-            return Response({
-                "details": "Message created successfully",
-                "message_id": messageEntity.message_id
-            }, status=201)
-
+            return Response(message_data, status=status.HTTP_201_CREATED)
         else:
-            return Response(serializer.errors, status=400)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
+    def get_queryset(self):
+        user = self.request.user
+
+        messages = MessageItemInfo.objects.filter(
+            Q(sender=user) | Q(messagereceivers__receiver=user)).distinct()
+        return messages
+    # def get_queryset(self):
+    #     # return MessageReceivers.objects.filter(receiver=self.request.user.id)
+    #     return MessageItemInfo.objects.all()
 
 
-class MessageListView(APIView):
-    permission_classes = [IsAuthenticated]
+class ListUnreadMessageView(generics.ListAPIView):
+    # permission_classes = [IsAuthenticated]
+    serializer_class = UnreadMessageItemInfoSerializer
 
-    def get(self):
-        print(MessageItemInfo.objects.filter(sender=self.request.user.id))
-        # serializer = MessageSerializer()
+    def get_queryset(self):
+        user = self.request.user
+
+        messages = MessageItemInfo.objects.filter(
+            Q(sender=user) | Q(messagereceivers__receiver=user)).distinct()
+        return messages
