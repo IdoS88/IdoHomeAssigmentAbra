@@ -4,19 +4,17 @@
 #         users = Users.objects.all()
 #         serializer = BaseUsersSerializer(users, many=True)
 #         return JsonResponse(serializer.data, safe=False)
-import json
-import uuid
-
 from django.contrib.auth import authenticate
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
-from django.http import JsonResponse
-from rest_framework import permissions, status
+from rest_framework import status, generics
 from rest_framework.authtoken.models import Token
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import MessageItemInfo, MessageReceivers
-from .serializers import MessageSerializer, MessageReceiverSerializer, LoginSerializer
+from .serializers import CreateMessageSerializer, LoginSerializer, RetrieveDestroyOutputMessageSerializer
 
 
 class LoginAPIView(APIView):
@@ -53,68 +51,66 @@ class LoginAPIView(APIView):
         return Response(response, status=status.HTTP_400_BAD_REQUEST)
 
 
-def updateToRead(message_id):
-    model_to_patch = MessageReceivers.objects.get(message_id=message_id)
-    serializer = MessageReceiverSerializer(model_to_patch, data=json.dumps({"read": True}),
-                                           partial=True)  # set partial=True to update a data partially
-    if serializer.is_valid():
-        serializer.save()
-        print(serializer.data)
-        return True
-    return False
+# class MessagePermissionMixin():
+#     permission_classes = [IsAuthenticated]
+#     model = MessageItemInfo
+#
+#     def get_object(self):
+#         try:
+#             message = super().get_object()
+#             if self.request.user.id != message.sender and self.request.user.id not in message.receivers:
+#                 raise NotFound("You don't have permission to view this message")
+#             return message
+#         except MessageItemInfo.DoesNotExist:
+#             raise NotFound("Message not found")
+#
+#     def get_serializer_context(self):
+#         context = super().get_serializer_context()
+#         context.update({'request': self.request})
+#         return context
 
+# PermissionRequiredMixin
+class RetrieveMessageDetailsView(generics.RetrieveDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = RetrieveDestroyOutputMessageSerializer
+    queryset = MessageItemInfo.objects.all()
+    lookup_field = "message_id"
 
-class MessageDetail(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_required = ["messages.view_MessageItemInfo", "messages.change_MessageReceivers"]
 
-    def get(self, request, message_id):
-        if not isinstance(message_id, uuid.UUID):
-            return Response("Invalid message ID", status=400)
-
+    def get(self, request, *args, **kwargs):
+        get = self.retrieve(request, *args, **kwargs)
         try:
-            message = MessageItemInfo.objects.get(id=message_id)
-        except MessageItemInfo.DoesNotExist:
-            return Response("Message not found", status=404)
-
-        try:
-            receivers = []
-            receiver_qs = MessageReceivers.objects.filter(message=message_id)
-            for receiver_row in receiver_qs:
-                user = receiver_row.receiver.username
-                receivers.append(user)
-
-            data = {
-                "message_id": message.id,
-                "sender": message.sender.username,
-                "receivers": receivers,
-                "subject": message.subject,
-                "text": message.text,
-                "dateCreated": message.dateCreated
-            }
-            # Check if the user is the sender or one of the receivers
-            if self.request.user.id != message.sender.username and self.request.user.username not in receivers:
-                return Response("You don't have permission to view this message", status=403)
-            if any(value == "" or value is None for value in data.values()):
-                raise Exception("Receivers not Found")
-        except Exception as e:
-            return Response(data={"errors": e}, status=404)
-        if not updateToRead(message_id):
-            # TODO : error message to add
-            return JsonResponse(status=400)
-
-        return JsonResponse(data, status=200)
+            receiver = MessageReceivers.objects.get(message_id=self.kwargs.get("message_id"),
+                                                    receiver=self.request.user.id)
+            receiver.read = True
+            receiver.save()
+        except MessageReceivers.DoesNotExist as e:
+            if self.request.user.id != get.data.sender:
+                Response(e, status=status.HTTP_403_FORBIDDEN)
+        return get
+    def get_queryset(self):
+        if()
 
 
-class CreateMessageView(APIView):
+class DeleteMessageDetailsView(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated]
 
+
+
+
+class ListCreateMessageView(LoginRequiredMixin, generics.ListCreateAPIView):
+    # permission_classes = [IsAuthenticated]
+    queryset = MessageItemInfo.objects.all()
+    serializer_class = CreateMessageSerializer
+
+    # return MessageItemInfo.objects.filter(message_id=self.lookup_field) for list
     def post(self, request):
-        serializer = MessageSerializer(data=request.data)
+        serializer = CreateMessageSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            if serializer.data["sender"] != self.request.auth.key:
-                return Response("You don't have permission to write this message from this sender", status=403)
             # Save message
             messageEntity = MessageItemInfo.objects.create(
-                sender_id=User.objects.get(username=serializer.validated_data['sender']).username,
+                sender_id=request.user.id,
                 subject=serializer.validated_data['subject'],
                 text=serializer.validated_data['text']
             )
@@ -122,14 +118,25 @@ class CreateMessageView(APIView):
             # Save receivers
             for receiver in serializer.validated_data['receivers']:
                 MessageReceivers.objects.create(
-                    message_id=messageEntity.id,
-                    receiver_id=User.objects.get(username=receiver).username
+                    message_id=messageEntity.message_id,
+                    receiver_id=User.objects.get(id=receiver).id
                 )
 
             return Response({
                 "details": "Message created successfully",
-                "message_id": messageEntity.id
+                "message_id": messageEntity.message_id
             }, status=201)
 
         else:
             return Response(serializer.errors, status=400)
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+
+class MessageListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self):
+        print(MessageItemInfo.objects.filter(sender=self.request.user.id))
+        # serializer = MessageSerializer()

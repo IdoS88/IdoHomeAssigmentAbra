@@ -13,8 +13,3 @@ def handle_message_receiver_delete(sender, instance, **kwargs):
     if not MessageReceivers.objects.filter(message_id=message_info).exists():
         MessageItemInfo.objects.filter(pk=message_info).delete()  # Delete MessageItemInfo if all unread receivers gone
 
-
-@receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def create_auth_token(sender, instance=None, created=False, **kwargs):
-    if created:
-        Token.objects.create(user=instance)
