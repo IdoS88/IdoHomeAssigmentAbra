@@ -11,7 +11,6 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'AbraHomeAssignment.settings')
-
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'AbraHomeAssignment')
 application = get_wsgi_application()
-app = application
+app = application  # add here
