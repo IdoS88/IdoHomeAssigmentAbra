@@ -22,7 +22,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # add messages api urls
     path('api/', include("Messages.urls")),
-    # path("api/user/login/", LoginAPIView.as_view(), name="user-login"),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]

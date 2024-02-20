@@ -24,7 +24,7 @@ SECRET_KEY = 'django-insecure-qjur-38^_90hqgi#g&4#)qx38fy@=$1xy07&bhyi&+8zyfv-7)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['.vercel.app']
 
 # Application definition
 
@@ -90,13 +90,7 @@ WSGI_APPLICATION = 'AbraHomeAssignment.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        # 'ENGINE': 'django.db.backends.mysql',
         'NAME': BASE_DIR / "db.sqllite3",
-        # 'NAME': 'MessagesAbraDB',
-        # 'USER': 'root',
-        # 'PASSWORD': 'Ido@99Abra',
-        # 'HOST': 'localhost',
-        # 'PORT': '3306',
     }
 }
 

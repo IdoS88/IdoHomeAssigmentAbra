@@ -1,9 +1,3 @@
-# @csrf_exempt
-# def get_all_users(request):
-#     if request.method == 'GET':
-#         users = Users.objects.all()
-#         serializer = BaseUsersSerializer(users, many=True)
-#         return JsonResponse(serializer.data, safe=False)
 from django.contrib.auth import authenticate
 from django.db.models import Q
 from rest_framework import status, generics
@@ -52,32 +46,11 @@ class LoginAPIView(APIView):
         return Response(response, status=status.HTTP_400_BAD_REQUEST)
 
 
-# class MessagePermissionMixin():
-#     permission_classes = [IsAuthenticated]
-#     model = MessageItemInfo
-#
-#     def get_object(self):
-#         try:
-#             message = super().get_object()
-#             if self.request.user.id != message.sender and self.request.user.id not in message.receivers:
-#                 raise NotFound("You don't have permission to view this message")
-#             return message
-#         except MessageItemInfo.DoesNotExist:
-#             raise NotFound("Message not found")
-#
-#     def get_serializer_context(self):
-#         context = super().get_serializer_context()
-#         context.update({'request': self.request})
-#         return context
-
-# PermissionRequiredMixin
 class RetrieveMessageDetailsView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = RetrieveDestroyOutputMessageSerializer
     queryset = MessageItemInfo.objects.all()
     lookup_field = "message_id"
-
-    # permission_required = ["messages.view_MessageItemInfo", "messages.change_MessageReceivers"]
 
     def get(self, request, *args, **kwargs):
         get = self.retrieve(request, *args, **kwargs)
@@ -118,11 +91,10 @@ class DeleteMessageDetailsView(generics.DestroyAPIView):
 
 
 class CreateListMessageView(generics.ListCreateAPIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     queryset = MessageItemInfo.objects.all()
     serializer_class = AllMessageItemInfoSerializer
 
-    # return MessageItemInfo.objects.filter(message_id=self.lookup_field) for list
     def post(self, request):
         serializer = CreateMessageSerializer(data=request.data)
         if serializer.is_valid():
@@ -139,9 +111,6 @@ class CreateListMessageView(generics.ListCreateAPIView):
         messages = MessageItemInfo.objects.filter(
             Q(sender=user) | Q(messagereceivers__receiver=user)).distinct()
         return messages
-    # def get_queryset(self):
-    #     # return MessageReceivers.objects.filter(receiver=self.request.user.id)
-    #     return MessageItemInfo.objects.all()
 
 
 class ListUnreadMessageView(generics.ListAPIView):

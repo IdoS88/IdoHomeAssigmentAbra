@@ -13,9 +13,9 @@ router = routers.DefaultRouter()
 urlpatterns = [
     path('', include(router.urls)),
     path('messages/', CreateListMessageView.as_view()),
-    path('messages/0', ListUnreadMessageView.as_view()),
+    path('messages/get-unread', ListUnreadMessageView.as_view()),
     path('messages/<uuid:message_id>', RetrieveMessageDetailsView.as_view()),
     path('messages/<uuid:message_id>/delete', DeleteMessageDetailsView.as_view()),
-    # path('messages/<int:user_id>/',UnReadMessageList.as_view())
+
 
 ]
